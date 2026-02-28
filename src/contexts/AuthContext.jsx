@@ -5,8 +5,8 @@ import {
   setAccessToken,
   clearAccessToken,
   setRefreshTokenMem,
-  clearRefreshTokenMem,
   getRefreshTokenMem,
+  clearRefreshTokenMem,
   isLocalDevMode,
   doRefresh,
 } from "../api";
@@ -17,6 +17,9 @@ export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // =========================================================================
+  // LOGOUT
+  // =========================================================================
   const logout = useCallback(async (callApi = true) => {
     try {
       if (callApi) await authApi.logout();
@@ -36,22 +39,14 @@ export function AuthProvider({ children }) {
   }, [logout]);
 
   // =========================================================================
-  // INIT AU MONTAGE
-  //
-  // WEB      → cookie HttpOnly présent → refresh réussit → session restaurée
-  // LOCAL-DEV → refresh_token dans localStorage → refresh réussit si présent
-  //             sinon → login affiché (normal après expiration des 30j)
+  // INIT — Restaure la session au montage
   // =========================================================================
   useEffect(() => {
     const initSession = async () => {
       try {
-        // ✅ En local-dev, vérifie qu'on a un refresh_token avant d'essayer
-        if (isLocalDevMode() && !getRefreshTokenMem()) {
-          return; // Pas de token → affiche login directement, pas d'appel inutile
-        }
+        if (isLocalDevMode() && !getRefreshTokenMem()) return;
 
         const newToken = await doRefresh();
-
         if (newToken) {
           const { data } = await authApi.me();
           setUser(data.data?.user || data.user);
@@ -67,13 +62,15 @@ export function AuthProvider({ children }) {
     initSession();
   }, []);
 
+  // =========================================================================
+  // LOGIN CLASSIQUE
+  // =========================================================================
   const login = useCallback(async (email, password, rememberMe = false) => {
     const { data } = await authApi.login(email, password, rememberMe);
 
     setAccessToken(data.data?.access_token);
     setUser(data.data?.user);
 
-    // ✅ LOCAL-DEV : stocker le refresh_token reçu dans le JSON → localStorage
     if (isLocalDevMode() && data.data?.refresh_token) {
       setRefreshTokenMem(data.data.refresh_token);
     }
@@ -81,6 +78,37 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
+  // =========================================================================
+  // LOGIN GOOGLE — appelé par GoogleCallbackPage après échange du code
+  // =========================================================================
+  const loginWithGoogle = useCallback(async (tempCode) => {
+    const { data } = await authApi.exchangeGoogleCode(tempCode);
+
+    setAccessToken(data.data?.access_token);
+    setUser(data.data?.user);
+
+    // local-dev → refresh_token dans le JSON → localStorage
+    if (isLocalDevMode() && data.data?.refresh_token) {
+      setRefreshTokenMem(data.data.refresh_token);
+    }
+
+    return data;
+  }, []);
+
+  // =========================================================================
+  // INITIER GOOGLE OAUTH — ouvre la popup/redirect Google
+  // =========================================================================
+  const initiateGoogleLogin = useCallback(async () => {
+    const frontendUrl = window.location.origin;
+    const { data }    = await authApi.getGoogleUrl(frontendUrl);
+
+    // Redirect vers Google — le backend encode client_type dans le state
+    window.location.href = data.url;
+  }, []);
+
+  // =========================================================================
+  // LOGOUT ALL
+  // =========================================================================
   const logoutAll = useCallback(async () => {
     try {
       await authApi.logoutAll();
@@ -98,6 +126,8 @@ export function AuthProvider({ children }) {
       login,
       logout,
       logoutAll,
+      loginWithGoogle,
+      initiateGoogleLogin,
       isLocalDev: isLocalDevMode(),
     }}>
       {children}

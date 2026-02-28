@@ -1,13 +1,8 @@
 // src/api/authApi.js
-// Tous les appels vers les endpoints auth de ton backend Laravel
-
 import axiosInstance from "./axios";
 
 const authApi = {
-  /**
-   * POST /auth/login
-   * remember_me → cookie persistant 30j ou session cookie
-   */
+  // ── AUTH CLASSIQUE ──────────────────────────────────────────────────────────
   login: (email, password, rememberMe = false) =>
     axiosInstance.post("/auth/login", {
       email,
@@ -15,41 +10,28 @@ const authApi = {
       remember_me: rememberMe,
     }),
 
-  /**
-   * POST /auth/logout
-   * Backend révoque l'access token + le refresh token + supprime le cookie
-   */
   logout: () => axiosInstance.post("/auth/logout", {}),
-
-  /**
-   * POST /auth/logout-all
-   * Révoque toutes les sessions sur tous les appareils
-   */
   logoutAll: () => axiosInstance.post("/auth/logout-all", {}),
-
-  /**
-   * POST /auth/refresh-token
-   * Cookie HttpOnly refresh_token envoyé automatiquement via withCredentials
-   * Pas besoin de passer le token manuellement
-   */
   refresh: () => axiosInstance.post("/auth/refresh-token", {}),
-
-  /**
-   * GET /auth/user/me
-   * Récupère le profil de l'utilisateur connecté
-   */
   me: () => axiosInstance.get("/auth/user/me"),
 
-  /**
-   * POST /auth/register
-   */
-  register: (payload) => axiosInstance.post("/auth/register", payload),
+  // ── GOOGLE OAUTH ────────────────────────────────────────────────────────────
 
   /**
-   * POST /auth/forgot-password
+   * Récupère l'URL Google à ouvrir dans le navigateur
+   * Le backend encode client_type dans le state Google
    */
-  forgotPassword: (email) =>
-    axiosInstance.post("/auth/forgot-password", { email }),
+  getGoogleUrl: (frontendUrl) =>
+    axiosInstance.get("/auth/google/login", {
+      params: { frontend_url: frontendUrl },
+    }),
+
+  /**
+   * Échange le temp_code reçu en URL contre les tokens
+   * Appelé par GoogleCallbackPage après le redirect Google
+   */
+  exchangeGoogleCode: (code) =>
+    axiosInstance.post("/auth/google/exchange", { code }),
 };
 
 export default authApi;

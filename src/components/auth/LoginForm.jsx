@@ -1,18 +1,30 @@
 // src/components/auth/LoginForm.jsx
-import { useState } from "react";
-import { useAuth }  from "../../hooks/useAuth";
-import Spinner      from "../ui/Spinner";
-import ErrorBanner  from "../ui/ErrorBanner";
+import { useState }  from "react";
+import { useAuth }   from "../../hooks/useAuth";
+import Spinner       from "../ui/Spinner";
+import ErrorBanner   from "../ui/ErrorBanner";
+
+// ── SVG Google Icon ──────────────────────────────────────────────────────────
+const GoogleIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+    <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+    <path d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/>
+    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.96L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+  </svg>
+);
 
 export default function LoginForm() {
-  const { login } = useAuth();
+  const { login, initiateGoogleLogin } = useAuth();
 
-  const [email,      setEmail]      = useState("tiafranck31@yahoo.fr");
-  const [password,   setPassword]   = useState("password");
-  const [rememberMe, setRememberMe] = useState(false);
-  const [loading,    setLoading]    = useState(false);
-  const [error,      setError]      = useState("");
+  const [email,         setEmail]         = useState("");
+  const [password,      setPassword]      = useState("");
+  const [rememberMe,    setRememberMe]    = useState(false);
+  const [loading,       setLoading]       = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [error,         setError]         = useState("");
 
+  // ── Login classique ────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -20,7 +32,6 @@ export default function LoginForm() {
     try {
       await login(email, password, rememberMe);
     } catch (err) {
-      // Laravel retourne les erreurs de validation dans err.response.data
       const msg = err.response?.data?.message
         || err.response?.data?.errors?.email?.[0]
         || err.message
@@ -31,6 +42,20 @@ export default function LoginForm() {
     }
   };
 
+  // ── Login Google ───────────────────────────────────────────────────────────
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    setError("");
+    try {
+      await initiateGoogleLogin();
+      // La page va redirect vers Google — pas de finally car le composant
+      // sera démonté avant que la promesse se termine
+    } catch (err) {
+      setError("Impossible d'initier la connexion Google. Réessayez.");
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <div className="auth-form-container">
       <h2>Connexion</h2>
@@ -38,6 +63,23 @@ export default function LoginForm() {
 
       <ErrorBanner message={error} />
 
+      {/* ── Bouton Google ───────────────────────────────────────────────── */}
+      <button
+        type="button"
+        className="btn-google"
+        onClick={handleGoogleLogin}
+        disabled={googleLoading || loading}
+      >
+        {googleLoading ? <Spinner size={16} color="var(--text-2)" /> : <GoogleIcon />}
+        <span>Continuer avec Google</span>
+      </button>
+
+      {/* ── Séparateur ──────────────────────────────────────────────────── */}
+      <div className="auth-divider">
+        <span>ou</span>
+      </div>
+
+      {/* ── Formulaire classique ─────────────────────────────────────────── */}
       <form onSubmit={handleSubmit} noValidate>
         <div className="form-group">
           <label className="form-label" htmlFor="email">Adresse email</label>
@@ -69,11 +111,7 @@ export default function LoginForm() {
         </div>
 
         <div className="remember-row">
-          {/* ✅ Remember Me → cookie persistant 30j ou session cookie via Laravel */}
-          <label
-            className="checkbox-label"
-            onClick={() => setRememberMe(v => !v)}
-          >
+          <label className="checkbox-label" onClick={() => setRememberMe(v => !v)}>
             <div className={`checkbox-custom ${rememberMe ? "checked" : ""}`}>
               <svg width="10" height="8" viewBox="0 0 10 8" fill="none" aria-hidden="true">
                 <path d="M1 4L3.5 6.5L9 1" stroke="#09090b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -81,28 +119,15 @@ export default function LoginForm() {
             </div>
             Rester connecté 30 jours
           </label>
-
           <span style={{ fontSize: 13, color: "var(--gold)", cursor: "pointer" }}>
             Mot de passe oublié ?
           </span>
         </div>
 
-        <button type="submit" className="btn-primary" disabled={loading}>
+        <button type="submit" className="btn-primary" disabled={loading || googleLoading}>
           {loading ? <Spinner /> : "Accéder au tableau de bord →"}
         </button>
       </form>
-
-      {/* Demo credentials box */}
-      <div className="demo-box">
-        <p className="mono" style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>// DEMO CREDENTIALS</p>
-        <p className="mono" style={{ fontSize: 12, color: "var(--text-2)" }}>email: demo@leyinvest.com</p>
-        <p className="mono" style={{ fontSize: 12, color: "var(--text-2)" }}>pass: password</p>
-        <p className="mono" style={{ fontSize: 11, color: "var(--text-3)", marginTop: 8, lineHeight: 1.8 }}>
-          // remember_me → cookie persistant 30j{"\n"}
-          // cookie HttpOnly, inaccessible JS{"\n"}
-          // refresh auto avant expiration
-        </p>
-      </div>
     </div>
   );
 }
